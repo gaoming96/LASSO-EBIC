@@ -1,0 +1,58 @@
+---
+title: "Tutorial For ThreeHUMOption"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("C:/Users/Gao/Desktop/dissertation/R/me/0320midterm")
+#options(RCHART_WIDTH = 1000, RCHART_HEIGHT = 400)
+```
+
+```{r results = 'asis', comment = NA}
+library(rCharts)
+load("./df.RData")
+df <- data.frame(df[,3:6])
+colnames(df) <- c("CCR_train","HUM_train","CCR_test","HUM_test")
+df$method=c(rep("lasso",4),rep("group_lasso",4),rep("sparse_group_lasso",4))
+df$criterion=c("CV_deviance","CV_misclassificaiton_rate","BIC","EBIC",
+               "CV_deviance","CV_misclassificaiton_rate","BIC","EBIC",
+               "CV_deviance","CV_misclassificaiton_rate","BIC","EBIC")
+#df
+df_ctr <- df[,c(1,5,6)]
+#df_ctr
+n1 <- nPlot(CCR_train ~ method, group = "criterion", data = df_ctr, type = "multiBarChart")
+n1$templates$script <- "http://timelyportfolio.github.io/rCharts_nvd3_templates/chartWithTitle.html"
+n1$set(title = "CCR_train")
+n1$print('c1', include_assets = TRUE)
+n1$chart(forceY = c(0.80, 1))
+n1$save("fig1.html",standalone=TRUE)
+#n1$show('iframe', cdn = TRUE)
+
+df_ctr <- df[,c(2,5,6)]
+n2 <- nPlot(HUM_train ~ method, group = "criterion", data = df_ctr, type = "multiBarChart")
+n2$templates$script <- "http://timelyportfolio.github.io/rCharts_nvd3_templates/chartWithTitle.html"
+n2$set(title = "HUM_train")
+n2$chart(forceY = c(0.80, 1))
+#n2$print('c2', include_assets = TRUE)
+n2$save("fig2.html",standalone=TRUE)
+
+df_ctr <- df[,c(3,5,6)]
+n3 <- nPlot(CCR_test ~ method, group = "criterion", data = df_ctr, type = "multiBarChart")
+n3$templates$script <- "http://timelyportfolio.github.io/rCharts_nvd3_templates/chartWithTitle.html"
+n3$set(title = "CCR_test")
+n3$chart(forceY = c(0.80, 1))
+#n3$print('c3', include_assets = TRUE)
+n3$save("fig3.html",standalone=TRUE)
+
+df_ctr <- df[,c(4,5,6)]
+n4 <- nPlot(HUM_test ~ method, group = "criterion", data = df_ctr, type = "multiBarChart")
+n4$templates$script <- "http://timelyportfolio.github.io/rCharts_nvd3_templates/chartWithTitle.html"
+n4$set(title = "HUM_test")
+n4$chart(forceY = c(0.80, 0.9))
+#n4$print('c4', include_assets = TRUE)
+n4$save("fig4.html",standalone=TRUE)
+```
+
+```{r}
+#r1
+```
