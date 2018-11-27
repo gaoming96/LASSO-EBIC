@@ -1,5 +1,5 @@
 # LASSO-EBIC
-LASSO with EBIC to achieve enhanced variable selection in Multi-logistics model.
+LASSO (least absolute shrinkage and selection operator) with EBIC (extended bayesian information criterion) to achieve enhanced variable selection in Multi-logistics model.
 
 Here, we extend LASSO into Group LASSO and Sparse Group LASSO while extend BIC into EBIC simultaneously to achieve fairly sparse model.
 See `Midterm_report2.html` for quick `R::glmnet` and `R::grpreg` realization for all the models.
