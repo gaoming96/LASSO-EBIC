@@ -1,0 +1,1312 @@
+\documentclass[]{article}
+\usepackage{amssymb,amsmath}
+\usepackage[noend]{algpseudocode} %algorithm
+\usepackage{algorithm,algorithmicx} %algorithm
+\usepackage{graphicx} %figure
+\newtheorem{mythm}{Theorem}%[section]
+\newtheorem{remark}{Remark}
+\usepackage{float} %figure plot here
+\usepackage{subfigure} %subfigure
+\usepackage{cite} %bib
+\bibliographystyle{IEEEtran}
+
+
+%opening
+\title{}
+\author{}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+In machine learning and statistics, classification is one of the most common supervised learning methods considered. In this dissertation, we analyze the Singapore Eye Dataset which contains around 2700 samples of 300 predictors each. These predictors include blood data, eye data, body index, and a binary categorical variable heart disease. We expect to get a simple and practical model to predict whether a person suffers heart disease with the help of some predictors. 
+
+Due to the efficiency in clinical medicine, we use Logisitic Model as the classifier. In order to achieve feature selection, some Regularization Methods have been combined to the original model: LASSO (least absolute shrinkage and selection operator), Group LASSO (which select important factors rather than variables in lasso) and Sparse Group LASSO (SGL, which is sparse at both the group and individual feature levels).
+
+Next, we tune the hyperparameter in these penalized models. Some well-known tuning criteria are implemented: Cross Validation (CV) with deviance or misclassification error as the loss function, Akaike Information Criterion (AIC), Bayesian Information Criterion (BIC) and Extended Bayesian Information Criterion (EBIC, which is more parsimonious).
+
+Finally, we try to measure goodness of fit of the models with some index: Correct Classification Rate (CCR), Area Under receiver operating characteristic Curve (AUC) and Polytomous Discrimination Index (PDI) for single model and Net Reclassification Improvement (NRI) for comparison.
+
+After applying all these methods to the dataset, we assert that SGL with EBIC parameter tuning gives the best model containing 8 important predictors and achieves AUC 0.84 on test data.
+\end{abstract}
+\tableofcontents
+\section{Backgroud}
+\subsection{Classification}
+In machine learning and statistics, classification is one of the most common supervised learning methods taken into account. In general, we have many samples of data whose category memberships are known and want to identify which category a new observation belongs to. Each sample is more than a single number and, for instance, a multi-dimensional entry, which is said to have several predictors or features. There are many commonly-used classifiers such as Logistic Regression\cite{harrell2001ordinal}, Naive Bayes\cite{ng2002discriminative}, Linear Discriminant
+Analysis (LDA)\cite{mika1999fisher}, K-Nearest Neighbours (KNN)\cite{peterson2009k}, Support Vector Machine (SVM)\cite{hearst1998support}, Classification and Decision Tree (CADT)\cite{safavian1991survey} and newly deep learning methods\cite{fogel1990evolving}.
+
+All these classifiers have both pros and cons, and it is impossible to assert that one of them always works superior to the others. There is no supreme method but a most suitable one for a specific question, which I assert, to some extent, is the charm of machine learning. Since we explore on the Singapore Eye Dataset, we expect other properties of the final classifier:
+\begin{itemize}
+	\item Writable model. We desire to get a writable equation of the predictors and dependent variable.
+	\item Simple model. The model should be simple enough for practical and clinical use, which means the predictors should be as sparse as possible.
+	\item Time efficient. Due to so many observations, we hope our classifier is fast.
+\end{itemize}
+After we consider these properties, some classifiers such as deep learning method may not be adopted since the hardness to interpret. On that state, Logistic Regression gives a clear relationship between predictors and output. 
+
+\subsection{Feature Selection}
+There is a "sparsity hypothesis"\cite{ning2017general} goes, in a huge amount of predictors, barely a few of them are relevant to dependent variable. Actually it resembles the renowned Occam's razor rule\cite{gregg1984krashen}: given candidate models of similar predictive or explanatory power, the simplest model is most likely to be the best choice also implies. This hypothesis has many advantages. First, it reduce predictors which are actually noises and thus increase the precision. Second, the model is simpler and medical workers can make decision based on it more proficient. Even if the true model is not sparse, we may still be inspired by the mechanism behind it. Third, it is time-saving, which is a precious property in large data analysis. Fourth, it can prevent overfitting, that is the production of an analysis that corresponds too closely to a particular set of data, and may therefore fail to fit additional data or predict future observations reliably. An overfitting model has more predictors than can be justified by the data and consequently has higher variance.
+
+We have several wonderful measures to achieve feature selection. 
+\begin{itemize}
+	\item Filter Methods. For univariate feature selection, we examine each feature individually to determine the strength of the relationship of the feature with the response variable. The strength can be balanced by Pearson Correlation Coefficient\cite{benesty2009pearson} or Distance Correlation.
+	\item Wrapper Methods. They generate different subsets of features, each subset is subsequently used to build a model and train the learning algorithm. The best subset is selected by testing the algorithm. For instance, Forward and Backward selection\cite{morpurgo1963forward} is one of the representatives.
+	\item Embedded Methods. They utilize machine learning models bound with feature selection methods. For example, get most relevant variables with the help of tree-based bagging algorithm such as random forest\cite{liaw2002classification}. It provides two straightforward methods for feature selection: mean decrease impurity and mean decrease accuracy\cite{louppe2013understanding}.
+\end{itemize}
+
+In this dissertation, we focus on the third approach by using Regularization Method\cite{tikhonov1963solution} to select features. The general form is the convex optimization problem:
+\begin{equation}
+	\min \limits_{\beta}\sum_{i=1}^n L\left(y_i,f(\bf{x_i},\beta)\right) +\lambda \phi(\beta)
+\end{equation}
+Here, 
+\begin{itemize}
+	\item $ D=\{(\bf{x_i},y_i)\}_{i=1}^n , \bf{x_i}=(x_{i1},...,x_{ip})^T$ is the dataset.
+	\item $ \beta $ is the coefficients in the model.
+	\item $ f(\bf{x_i},\beta) $ is the estimator of $ y_i $.
+	\item $ L $ is the loss (cost) function, which measures the difference between $ y_i $ and its estimator. It is defined by specific machine learning models.
+	\item $\phi$ is the penalty function (regularization term). Its value is proportional to the complexity of the model.
+	\item $ \lambda \ge 0$ is the tuning parameter. It is a hyper parameter, which should be determined before fitting the model. 
+\end{itemize}
+Notice that regularization method is a trade-off between goodness of fit and model complexity. If $\lambda=0$, we don't penalize at all, the model will turn out to be too sophisticated; however, if  $\lambda=\infty$, no predictors will be chosen.
+
+Tibshirani has proposed LASSO (least absolute shrinkage and selection operator)\cite{tibshirani1996regression} which is a Regularization Methods. LASSO can shrink some of the regression coefficients to zero by imposing a penalty on their size. However, variable selection typically amounts to the selection of important factors (groups of variables) rather than individual derived variables, M. Yuan proposed Group LASSO\cite{yuan2006model} to make the model more explainable. Friedman has improved Group LASSO into a more generalized one: Sparse Group LASSO (SGL)\cite{friedman2010note}, thus variables selected are sparse at both the group and individual feature levels. M. Vincent applied Sparse Group LASSO into Multinomial Logistic Regression\cite{meier2008group} and made a R package msgl (High Dimensional Multiclass Classification Using Sparse Group Lasso) to realize it. Krishnapuram has developed fast Algorithms to Sparse Multinomial Logistic Regression\cite{krishnapuram2005sparse}.
+To summarize:
+\begin{itemize}
+	\item Ridge\cite{hoerl1970ridge}: $\phi(\beta)=|\beta|_2$
+	\item LASSO: $\phi(\beta)=|\beta|_1$
+	\item Elastic net\cite{zou2005regularization}: $\phi(\beta)=|\beta|_1+\lambda_1 |\beta|_2$
+	\item Group LASSO (GL): $\phi(\beta)= \sum_{j=1}^J \sqrt{p_j}|\beta_{G_j}|_2$	
+	
+	Here we divide \{1...m\} into J group $ \{G_1,...,G_J\} $. $ p_j\triangleq\#\{G_j\} $. $  \beta_{G_j}=(\beta_k)_{k\in G_j} $
+	\item Sparse Group LASSO (SGL): $\phi(\beta)= \{(1-\alpha)\sum_{j=1}^J \sqrt{p_j}|\beta_{G_j}|_2
+	+\alpha |\beta|_1\}$
+	
+	Here $0\le \alpha \le 1$
+\end{itemize}
+
+\subsection{Hyper Parameter Selection}
+Next, we select best model, that is, we try to choose the best $ \lambda $ based on some criteria. It is indeed a sort of art for hyper parameter tuning. Different $ \lambda $ may result in totally divergent model, predictors selected and final precision. Some criteria:
+\begin{itemize}
+	\item Cross validation (CV)\cite{kohavi1995study}
+	\item Akaike Information Criterion (AIC)\cite{akaike2011akaike}
+	\item Bayesian Information Criterion (BIC)\cite{posada2004model}
+	\item Extended Bayesian Information Criterion (EBIC)\cite{chen2008extended}
+\end{itemize}
+
+\subsection{Model Evaluation}
+Finally, we try to measure goodness of fit of the model. Since this is a classifier, we may simply use Correct Classification Rate (CCR) or samely, Accuracy (ACC) and Correct Classification Probability (CCP)\cite{li2012multicategory} to the test samples after we split the whole dataset into training and test part and fit the classifier to the training subset. Nevertheless, because our dataset is highly unbalanced, CCR is meaningless. We use Area Under receiver operating characteristic Curve (AUC)\cite{huang2005using} or samely, Polytomous Discrimination Index(PDI)\cite{van2012assessing} and Hypervolume Under Manifold (HUM)\cite{li2008roc} in two class classifier instead to represent precision.
+
+We use Net Reclassification Improvement (NRI)\cite{pencina2011extensions} as the improvement of nested models.
+\section{Regularization Family}
+\subsection{Statistical Property}
+\subsubsection{LASSO}
+Ordinary least square (OLS) estimators just minimize the Loss function, without any penalization at all. Hence, we are likely to run into a stone wall. OLS estimators may overfit the result, and may fit badly provided that the predictors have multicollinearity.
+
+Two common solutions are ridge regression and step-wise best subset selection. However, step-wise best subset selection is a discrete process, which is too extreme, and can thus be turbulent and sensible to the dataset. Ridge regression can only set coefficients to nearly zero, but not directly zero.
+
+LASSO can solve both of the disadvantages. It tends to produce some coefficients to zero so as to realize feature selection and it is a continuous method.
+
+\paragraph{Definition}
+LASSO:
+\begin{equation}
+\beta^L =\mathop{\arg\min}_{\beta} \left\{\rm LOSS+\lambda|\beta|_1\right\}
+\end{equation}
+\paragraph{Standardization}
+We should standardize dataset before running the LASSO algorithm:
+$\sum_i x_{ij}/n=0;\ \sum_i x_{ij}^2/n=1$.
+
+Since the interception is not penalized at all, we can just omit it for explicit notation by centering output y: $ y_i=y_i-\overline{y} $.
+
+\paragraph{Comparison with Ridge}
+The reason why LASSO can cause some coefficients to zero while ridge can't is that one-norm penalty has non-differentiable point $ \beta_j=0 $. For detail, we suppose the design matrix $ X $ is orthonormal,$ X^TX=I $ and we use least square loss function. LASSO tries to minimize:
+\begin{equation}
+\beta^L =\mathop{\arg\min}_{\beta} \left\{\frac{1}{2n}\sum_{i=1}^n (y_i-\bf{x_i}^T\beta)^2+\lambda|\beta|_1\right\} 
+\end{equation}
+while Ridge tries to minimize:
+\begin{equation}
+\beta^R =\mathop{\arg\min}_{\beta} \left\{\frac{1}{2n}\sum_{i=1}^n (y_i-\bf{x_i}^T\beta)^2+\lambda|\beta|_2\right\}
+\end{equation}
+
+The explicit expression for LASSO:
+\begin{equation} 
+{\beta_j^{L}}=s[\hat{\beta_j},\lambda]\triangleq sign(\hat{\beta_j})(|\hat{\beta_j}|-\lambda)_+
+\end{equation}
+here, $ s $ is called soft-thresholding operator, which means that $ \beta_j^L=0,\quad if\ -\lambda\leq\hat{\beta_j}\leq\lambda $. $ \hat{\beta_j} $ is the OLS of residual, fixing $\beta_k,\ k\neq j$.
+
+The derivation of the equation will be stated as follow:
+\begin{enumerate}
+	\item Separate $ \beta $ into $ \beta_j $ and others and we just focus on $ \beta_j $. Hence, this is why we get the OLS of residual fixing others.
+	\item Use subgradient\cite{held1974validation} method. Note that there is a non-differentiable point $ \beta_j=0 $, thus ordinary gradient method becomes invalid. Subgradient method returns the same result at the differentiable point, and returns a interval of left and right derivatives at the non-differentiable point. If $ \beta_j=0 $ falls in the interval, we regard that it is the extreme point. Hence, this is why there is a soft-thresholding operator.
+\end{enumerate}
+If we regard this equation as a constraint optimization problem, and write down the Karush–Kuhn–Tucker (KKT)\cite{wu2007karush} optimality conditions, we may receive same expression. Pay attention to see that we get the solution only when the design matrix is orthonormal.
+
+The explicit expression for Ridge:
+\begin{equation} 
+{\beta_j^{R}}=\frac{1}{1+\lambda}\hat{\beta_j}
+\end{equation}
+
+
+Ridge estimator actually scales the OLS estimators by a constant factor which is inverse ratio to $ \lambda $. Hence it may never be zero at all. At the other hand, LASSO estimator has a period of zero and is a soft shrinkage method. LASSO is somewhat indifferent to very correlated predictors, and will tend to pick one and ignore the rest, which expects many coefficients to be close to zero, and a small subset to be larger and nonzero. Figure\ref{fig=lvsr} is a famous insight for the case $ p=2 $.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/lvsr}
+	\caption{Estimation picture for LASSO and Ridge when dimension is 2. Black point is the OLS estimator. Ellipses are the contours of LOSS functions which are centered at the OLS estimates. The constraint regions are the feasible regions. Note that in LASSO, the optimum parameter $ \beta_2 $ is zero.\label{fig=lvsr}}
+	
+\end{figure}
+
+In Figure \ref{fig=lvsr}, These ellipses are the contours of LOSS functions which are centered at the OLS estimates. The constraint regions are the feasible regions if we regard both algorithms as convex optimization problems and use Lagrange duality\cite{hager1976lagrange}. Thus, LASSO can be equivalent to a optimization problem and there is a one-to-one match between $ t $ and $\lambda$ in equation \ref{eq:t} .
+\begin{equation}
+\beta^L =\mathop{\arg\min}_{\beta} \left\{\frac{1}{2n}\sum_{i=1}^n (y_i-\bf{x_i}^T\beta)^2 \right\} \quad subject \ to |\beta|_1 \leq t\label{eq:t} 
+\end{equation}
+
+Due to the rotated square in LASSO, sometimes the contours touch the corner of it, corresponding to a zero. However, there is no probability for a circle.
+
+\paragraph{Standard error}
+Tibshirani discussed about the statistical inference of the LASSO estimators. Since they are non-linear and non-differentiable, we are difficult to calculate the accurate standard error. There are two approaches. First is via the bootstrap. However, it may be difficult since selected variables would change from one sample to the other. An alternative is to regard one-norm penalty as a weighted two-norm: $ \sum_j \frac{1}{|\beta_j|}\beta_j^2 $. The ridge estimators $\beta^R$ is easy to approximate with a diagonal matrix with elements $|\beta_j^L|$. Hence, we may get the standard error by assuming output $y$ is normal. If $ \sigma^2 $ is unknown, we can replace it with its estimates from the full model. Note that standard error of zero-coefficient is zero.
+
+In the numerical experiment, we won't calculate the standard error. The reason for this is that standard errors are not very meaningful for strongly biased estimates such as LASSO, arised from penalized estimation methods.
+
+\paragraph{Hyper parameter $\lambda$}
+$\lambda$ balances the trade-off between goodness of fit and model complexity. If $\lambda=0$, we don't penalize at all, the model will turn out to be too sophisticated; however, if  $\lambda=\infty$, no predictors will be chosen. The bigger the value is, the higher bias and the lower variance the model fits. We leave sophisticated discussion about how to choose it in the next section.
+
+\paragraph{Bayes approach}
+If we regard LASSO as a one-norm penalty term to the residual sum of squares, we can consider the formula as Bayes posterior mode with a Laplace prior\cite{williams1995bayesian} while Ridge as a Normal prior.
+
+Maximum Likelihood Estimate (MLE) often fails in ill-conditioning data ("large p small n" for example), resulting a lack of convergence, large coefficient variance and overfitting.
+
+Maximum a posteriori (MAP) is proportional to the likelihood times the prior. If the prior arises from a Laplace (double exponential) distribution\cite{efron1986double}, we could prove that the posteriori distribution is equal to the residual sum of square plus one-norm. More precisely, let $ \beta_j\sim \rm Laplace(0,\frac{1}{\lambda}),\ i.i.d $, the probability density function is $f(\beta_j|\lambda)=\frac{\lambda}{2}e^{-\lambda|\beta_j|}$.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.75\textwidth]{pics/laplacevsn}
+	\caption{Laplace density in solid line and Normal density in slash.\label{fig=laplacevsn}}
+	
+\end{figure}
+
+Figure \ref{fig=laplacevsn} shows these two distributions. Note Laplace distribution puts more mass near zero and in the tails, which reflects the greater tendency of LASSO to produce coefficients either zero or large.
+
+\paragraph{Model evaluation}
+Ordinary, after we fit a model, we manipulate some statistics for goodness of fit ($R^2$ for example) and residual analysis to check whether the model accord with assumptions ($\epsilon\sim Normal$ in OLR for example). However, in LASSO, we do not implement these analysis. There are no distributional assumptions on $\epsilon$ ,thus it does not make any sense to analysis them the way we analysis in OLS (normality tests, heteroscedasticity, Durbin-Watson, etc). Furthermore, nothing is postulate on conditional distribution $ (y|X) $. We calculate CCR and AUC value on the test data as goodness of fit which will be discussed in the following section.
+\paragraph{Application to other models}
+LASSO can be used in numerous other models. In this dissertation, I will apply LASSO to binary logistic regression model. Nearly all the Generalized Linear Model (GLM)\cite{mccullagh1984generalized} can be used similarly.
+
+More general, any machine learning model which has a LOSS function could combine LASSO. However, usually we consider a quadratic approximation of LOSS function to accelerate speed. Although convergence may not be satisfied, in real experiment, it does quite a great job.
+
+Also, we could apply LASSO to tree-based model. Note that ordinary Classification And Regression Tree (CART) is a two step algorithm. First we grow a total large tree by maximize Gini Impurity\cite{kurt2008comparing} each time, which is greedy. Then we prune it with penalty of the number of leaves. Now, we use LASSO idea to shrink the large tree. Parameter is the mean contrasts at each node\cite{kim2010tree}.
+
+\paragraph{Shortcoming}
+Predictors should not be too correlated, or else, LASSO tends to choose one of them and transform the others to zeros. Hence, the result and predictors chosen are not stable. There are several ways to solve this shortcoming.
+\begin{itemize}
+	\item Elastic Net penalty. Elastic net is the combination of LASSO and Ridge. Since as we all know, Ridge regression can handle multicollinearity.
+	\item Use principal components regression\cite{chang2001near}. However, it can not actually realize variable shrinkage.
+	\item Group LASSO, which will be discussed as follow.
+\end{itemize}
+
+\subsubsection{Group LASSO}
+Usually, we have both continuous and categorical variables in our dataset and we use one-hot-encode to turn categorical variables into dummy variables. However, LASSO tends to select the important individual predictors rather than important factors, which is a group of variables. To state it in another way, it tends to make selection based on the strength of individual variable rather than the strength of groups of input variables, often resulting in selecting more factors than necessary. Yuan and Lin has proposed Group LASSO, which is a extension of LASSO in factor selection problems.
+\paragraph{Definition}
+We divide \{1...p\} into J group $ \{G_1,...,G_J\} $. $ \#\{G_j\}\triangleq p_j $. $ \beta_{G_j}=(\beta_k)_{k\in G_j} $.
+Group LASSO tries to minimize:
+\begin{equation} 
+\beta^{GL} =\mathop{\arg\min}_{\beta} \left\{\rm LOSS+\lambda \sum_{j=1}^J \sqrt{p_j}|\beta_{G_j}|_2\right\}
+\end{equation}
+
+The penalized weight $ p_j $ is just for a historical reason and is not a must. It penalizes a group with more predictors more heavily.
+\paragraph{Comparison with LASSO}
+Group LASSO is an intermediate between LASSO and Ridge. Note that if $ p_1=...=p_J=1 $, it is LASSO; if $ J=1 $, it is Ridge. Consider a case where there are two factors: a bi-dimension vector $ \beta_1=(\beta_{11},\beta_{12})^T $ and a scalar $ \beta_2 $. We combine $ \beta_{11},\beta_{12} $ in a group and $ \beta_2 $ another group. Samely as before, we can draw the feasible region when regarding group LASSO as a optimization problem. The group LASSO encourages sparsity at the factor level.
+
+Suppose the design matrix $ X $ is orthonormal, we can get explicit solution for Group LASSO almost the same as LASSO.
+\begin{equation} 
+\beta_{G_j}^{GL}=s[\hat{\beta}_{G_j},\lambda\sqrt{p_j}]
+\end{equation}
+s is soft-thresholding operator defined before. $ \hat{\beta}_{G_j} $ is the OLS of residual, fixing $\beta_{G_k},\ k\neq j$.
+\paragraph{shortcoming}
+The group lasso does not, however, yield sparsity within a group. If a group of parameters is non-zero, they will all be non-zero, which may select too many predictors.
+\subsubsection{Sparse Group LASSO}
+Hastie and Tibshirani consider a more general penalty blends LASSO and Group LASSO, which yields solutions that are sparse at both the group and individual feature levels. It is called Sparse Group LASSO (SGL).
+\paragraph{Definition}
+We divide \{1...p\} into J group $ \{G_1,...,G_J\} $. $ \#\{G_j\}\triangleq p_j $. $ \beta_{G_j}=(\beta_k)_{k\in G_j} $.
+Sparse Group LASSO tries to minimize:
+\begin{equation} 
+\beta^{SGL} =\mathop{\arg\min}_{\beta} \left\{\rm LOSS+\lambda \left[(1-\alpha)\sum_{j=1}^J \sqrt{p_j}|\beta_{G_j}|_2
++\alpha |\beta|_1\right]\right\}
+\end{equation}
+
+This expression is the sum of convex functions and is therefore convex. $0 \leq \alpha \leq 1$.
+
+\paragraph{Comparison with GL \& LASSO}
+Sparse Group LASSO is an intermediate between LASSO and GL. Note that if $ \alpha=0 $, it is GL; if $ \alpha=1 $, it is LASSO. Consider two predictors $ \beta_1 $ and $ \beta_2 $, suppose we relegate them to a single group. Figure \ref{fig:contour} draws contour lines of the penalty for GL: a circle, which has the biggest area; LASSO: a rotated square with the smallest; and SGL: an area between them, that contains LASSO and be contained by GL.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.75\textwidth]{pics/contour}
+	\caption{Feasible regions of LASSO, GL and SGL penalties when dimension is two.\label{fig:contour}}
+	
+\end{figure}
+
+If design matrix $X$ is orthogonal, we may get explicit result.
+
+$ \alpha $ is a hyper parameter to balance LASSO and GL. Models with a low value have a larger number of non-zero parameters (tends to GL) than models with a high value. The author suggests $ \alpha=0.25,0.5 $.
+
+LASSO makes the best precision and GL the worst for the sparse configuration, while SGL is the compromise of them.
+\subsection{Solution with Normal Distribution}
+In this subsection, we give the algorithms of these LASSO family on the occasion that the dependent variable $y$ is of normal distribution. Note that time efficiency is of top emphasis.
+
+Given a data set $ \{y_i,\, x_{i1}, \ldots, x_{ip}\}_{i=1}^n $, suppose 
+$y_i \sim N(\mathbf{x}^{\top}_i \beta,\sigma^2)$,
+then the model takes the form:
+\begin{equation}
+y_i = \beta_0 1 + \beta_1 x_{i1} + \cdots + \beta_p x_{ip} + \varepsilon_i
+= \mathbf{x}^{\top}_i \beta + \varepsilon_i,
+\qquad i = 1, \ldots, n,
+\end{equation}
+
+Often these n equations are stacked together and written in vector form as
+$ \mathbf{y} = X \beta +  \varepsilon $.
+
+We can calculate the likelihood function:
+\begin{equation}
+\sum_{i=1}^nf(y_i|\beta,\sigma^2)=(\frac{1}{\sqrt{2\pi}})^n\sigma^{-n}e^{-\frac{(y-X\beta)^T(y-X\beta)}{2\sigma^2}}
+\end{equation}
+
+By minimize the loss function, we obtain Maximum Likelihood Estimate (MLE):
+\begin{align}
+	\hat{\beta}&=(X^TX)^{-1}X^Ty \\
+	 \hat{\sigma}^2&=\frac{1}{n} (y-X\hat{\beta})^T(y-X\hat{\beta})
+\end{align}
+
+When we look it up in the matrix space, it is the same to minimize (when fixing $ \sigma^2 $):
+\begin{equation}
+\rm LOSS(\beta)=(y-X\beta)^T(y-X\beta)
+\end{equation}
+Thus, we use this Least Square LOSS function in normal distribution.
+\subsubsection{LASSO}
+It is a quadratic programming problem with linear inequality constraints. We use Cyclical Coordinate Descent\cite{friedman2010regularization} to iterate in order to get LASSO estimator. It is an optimization algorithm that successively minimizes along coordinate directions to find the minimum of a function. At each iteration, we minimize the objective function in line search while fixing all other coordinates.
+\begin{algorithm}  
+	\caption{LASSO}  
+	\begin{algorithmic}[1] %每行显示行号  
+		\Repeat
+		\State Choose next index j.
+		\State Update $ \beta_j $.
+		\State \begin{equation*}
+		\beta_j =arg\min \limits_{\beta_j} \left\{\frac{1}{2}\sum_{i=1}^n (y_i-\bf{x_i}^T\beta)^2+\lambda|\beta|_1\right\} 
+		\end{equation*}
+		\Until stopping condition is met.
+	\end{algorithmic}
+\end{algorithm} 
+
+The reason why Coordinate Descent works well in LASSO family is that:
+\begin{itemize}
+	\item Each coordinate minimization can be done quickly, it is a quadratic optimization programming. We have given the explicit form of orthogonal cases.
+	\item Quite a lot of $ \beta_j $ stay zero while iterating, thus the speed is very fast.
+\end{itemize}
+
+\paragraph{Convergence}
+Tseng (2001) has established that coordinate descent converges to the minimizer of objective function\cite{tseng2001convergence}. The key to this result is the separability of the penalty function, that is each $ \beta_j $ can be separated from others. Hence, the coordinate-wise algorithms for the LASSO and Group LASSO converge to their optimal solutions.
+\paragraph{Comparison with Other Algorithms}
+Many other algorithms have been proposed to solve LASSO, such as Least Angle Regression (LARS)\cite{efron2004least}, which is a compromise between Forward Selection and Forward Stagewise. Several detailed comparisons have been experimented\cite{friedman2007pathwise}, which shows that coordinate-wise descent is very competitive with others, probably the fastest procedure for that problem to-date. In terms of numerical errors, for heavily correlated variables, Lars will accumulate more errors, while the coordinate descent algorithm will only sample the path on a grid. Many \textbf{R} packages such as \textbf{glmnet} have enclosed this algorithm.
+
+\subsubsection{Group LASSO}
+We use Cyclical Block Coordinate Descent\cite{wright2015coordinate} to iterate in order to get Group LASSO estimator. It quite resembles Coordinate Descent except we iterate one group at a time.
+\begin{algorithm}  
+	\caption{Group LASSO}  
+	\begin{algorithmic}[1] %每行显示行号  
+		\Repeat
+		\State Choose next block index $ G_j $.
+		\State Update $ \beta_{G_j} $.
+		\State \begin{equation*}
+		\beta_{G_j} =arg\min \limits_{\beta_{G_j}} \left\{\frac{1}{2}\sum_{i=1}^n (y_i-\bf{x_i}^T\beta)^2+\lambda\sum_{j=1}^J \sqrt{p_j}|\beta_{G_j}|_2\right\} 
+		\end{equation*}
+		\Until stopping condition is met.
+	\end{algorithmic}
+\end{algorithm}
+
+The authors of Group LASSO establish an \textbf{R} package \textbf{grplasso} for numerical experiment. Also, \textbf{grpreg} is an elegant choice.
+\paragraph{Comparison with LASSO}
+As shown in Efron(2004)\cite{efron2004least}, the solution paths of LASSO is piecewise linear, and thus can be computed very efficiently. However, group LASSO is generally not piecewise linear\cite{yuan2006model} and the time consumed will be much longer.
+
+
+\subsubsection{Sparse Group LASSO}
+We use Cyclical Block Coordinate Descent to iterate in order to get Sparse Group LASSO estimator. We utilize two loops in one iteration, the outer one is for group index and the inner for item index.
+\begin{algorithm}  
+	\caption{Sparse Group LASSO}  
+	\begin{algorithmic}[1] %每行显示行号  
+		\Repeat
+		\State Choose next block index $ G_j $.
+		\Repeat
+		\State Choose next index $k$ in $G_j$. 
+		\State Update $ \beta_{k} $.
+		\State \begin{equation*}
+		\beta_{k} =arg\min \limits_{\beta_{k}} \left\{\frac{1}{2}\sum_{i=1}^n (y_i-\bf{x_i}^T\beta)^2+\lambda (1-\alpha)\sum_{j=1}^J \sqrt{p_j}|\beta_{G_j}|_2+\lambda\alpha|\beta|_1\right\} 
+		\end{equation*}
+		\Until stopping condition is met.
+		\Until stopping condition is met.
+	\end{algorithmic}
+\end{algorithm}
+
+The authors of Sparse Group LASSO establish an \textbf{R} package \textbf{msgl} for numerical experiment.
+
+\paragraph{Convergence}
+The Sparse Group LASSO penalty is not completely separable, which is problematic using the standard method to prove convergence. Hence, we modify coordinate descent method a little. After setting several assumptions, we can prove that logit and normal SGL is indeed convergent with some sophisticated mathematical computing in Vincent (2014)\cite{vincent2014sparse}. 
+
+\subsection{Solution with Binomial Distribution}
+In this subsection, we give the algorithms of these LASSO family on the occasion that the dependent variable $y$ is of binomial distribution. 
+
+Suppose $ y_i \sim \rm Bin(1,p_i) $, then $ \mu_i\triangleq E(y_i)=p_i $.
+Let $ \bf{x_i}^T\beta =g(\mu_i)\triangleq \ln\frac{p_i}{1-p_i} $.
+
+Hence,
+\begin{equation}
+p_i=P(y_i=1|\bf{x_i})=\frac{1}{1+e^{-\bf{x_i}^T\beta}} 
+\end{equation}
+
+We use minus log likelihood as the LOSS function. We often use log function to prevent number underflow, especially in the continuously multiplication of probability, which is called Laplace Correction.
+\begin{align*}
+\rm LOSS(\beta)&=\frac{1}{n}\sum_{i=1}^n y_i\ln p_i+(1-y_i)\ln(1-p_i) \\
+&=\frac{1}{n}\sum_{i=1}^n y_i(\bf{x_i}^T\beta)-\ln(1+e^{\bf{x_i}^T\beta})
+\end{align*}
+
+When we minimize LOSS function without any penalty, the explicit result is impossible due to the exponential term. Hence, usually we manipulate a quadratic approximation.
+
+\begin{algorithm}  
+	\caption{Newton Method}  
+	\begin{algorithmic}[1] %每行显示行号  
+		\Repeat
+		\State Evaluate $ g=\nabla Q(\beta)=X^T(\mu-y)$
+		\State Evaluate $ H=\nabla g=X^TSX$, here $S=\rm diag\{\mu_1(1-\mu_1),...,\mu_n(1-\mu_n)\}$
+		\State Solve $ d=-H^{-1}g $
+		\State Update $\beta$: $\beta=\beta+d$
+		\State $\beta^{t+1}=(X^TS^tX)^{-1}X^TS^tz^t$, here $z^t=X\beta^t+S^{-1t}(y-\mu^t)$ at $ t $ iteration
+		\Until stopping condition is met.
+	\end{algorithmic}
+\end{algorithm} 
+
+Note that newton method is actually a quadratic approximation, a taylor expansion about current estimates $\beta$. In a more statistical type, we gives Iteratively Reweighted Least Squares (IRLS)\cite{holland1977robust} method to get the estimator, which is actually equivalent. We can regard output $y$ as normal distribution, with a diagonal covariance matrix. Then, it amounts to weighted least square.
+\begin{algorithm}  
+	\caption{Iteratively Reweighted Least Squares}  
+	\begin{algorithmic}[1] %每行显示行号  
+		\Repeat $\ at\ t^{th}$ iteration
+		\State \begin{equation*}
+		Q(\beta^t)=-\frac{1}{2n}\sum_{i=1}^n s_i^t(z_i^t-\bf{x_i}^T\beta^t)^2+CONSTANT
+		\end{equation*}
+		\State Update $ \beta^{t+1}=\mathop{\arg\min}_{\beta} Q(\beta^t)$
+		\State From weighted LS, $\beta^{t+1}=(X^TS^tX)^{-1}X^TS^tz^t$
+		\Until stopping condition is met.
+	\end{algorithmic}
+\end{algorithm} 
+
+\subsubsection{LASSO}
+We combine IRLS and coordinate descent algorithm to compute it. The outer loop is the approximation of LOSS function and the inner loop is the coordinate index.
+\begin{algorithm}  
+	\caption{Logistic LASSO}  
+	\begin{algorithmic}[1] %每行显示行号  
+		\Repeat $\ at\ t^{th}$ iterate
+		\State Update the quadratic approximation $ LOSS(\beta^t) $ at $\beta^t$
+		\Repeat
+		\State Choose next index j
+		\State Update $ \beta^t_j =arg\min\limits_{\beta^t_j}\left\{ Q(\beta^t)+\lambda|\beta^t|_1 \right\}$.
+		\Until stopping condition is met.
+		\Until stopping condition is met.
+	\end{algorithmic}
+\end{algorithm} 
+\paragraph{Convergence}
+Just follow Tseng (2001), we may prove that coordinate descent converges to the minimizer of objective function similarly. Hence, the coordinate-wise logistic algorithms for the LASSO and Group LASSO converge to their optimal solutions.
+\subsubsection{Group LASSO}
+Since it is time-consuming for us to compute the Hessian matrix for block terms, we make some approximations.
+\begin{itemize}
+	\item Use a diagonal matrix $ h_{G_j}^t I $ to approximate Hessian matrix, where $ h_{G_j}^t $ is a scalar term and is fixed in the $ t^{th} $ iteration.
+	\item Use Armijo rule\cite{liu1991optimization} to get inexact optimum. Armijo Goldstein condition involves starting with a relatively large estimate of the step size for movement along the search direction and iteratively shrinking the step size until a decrease of the objective function is observed.
+\end{itemize}
+Block Coordinate Gradient Descent (BCGD)\cite{tseng2009coordinate} is used here.
+\begin{algorithm}  
+	\caption{Logistic Group LASSO}  
+	\begin{algorithmic}[1] %每行显示行号  
+		\Repeat $\ at\ t^{th}$ iterate
+		\State Update the quadratic approximation $ Q(\beta^t) $ at $\beta^t$
+		\Repeat
+		\State Choose next block index $ {G_j} $
+		\State Approximate $H_{G_jG_j}^t=h_{G_j}^t I$
+		\State Find direction $ d_{G_j}^t $
+		\State \begin{equation*}
+		d_{G_j}^t=arg\min\limits_{d_{G_j}^t}\left\{Q(\beta^t)+\lambda\sum_{j=1}^J \sqrt{p_{G_j}^t}|\beta_{G_j}^t|_2\right\}
+		\end{equation*}
+		\State Line search $ \tau $ using the Armijo rule.
+		\State Update $ \beta^t_{G_j}=\beta^t_{G_j}+\tau d^t_{G_j}$
+		\Until stopping condition is met.
+		\Until stopping condition is met.
+	\end{algorithmic}
+\end{algorithm}
+\paragraph{Comparison with Others}
+Meier has made thorough computational speed experiments, and BCGD for sparse models is efficient for high dimensional data\cite{meier2008group}.
+
+\subsubsection{Sparse Group LASSO}
+We make a hybrid of BCGD and IRLS.
+\begin{algorithm}  
+	\caption{Logistic Sparse Group LASSO}  
+	\begin{algorithmic}[1] %每行显示行号  
+		\Repeat $\ at\ t^{th}$ iterate
+		\State Update the quadratic approximation $ Q(\beta^t) $ at $\beta^t$
+		\Repeat
+		\State Choose next block index $ {G_j} $
+		\State Approximate $H_{G_jG_j}^t=h_{G_j}^t I$
+		\Repeat
+		\State Choose next index $k$ in $ {G_j} $
+		\State Find direction $ d_{k}^t $
+		\State \begin{equation*}
+		d_{k}^t=arg\min\limits_{d_{k}^t}\left\{Q(\beta^t)+\lambda (1-\alpha)\sum_{j=1}^J \sqrt{p_{G_j}}|\beta_{G_j}^t|_2+\lambda\alpha|\beta^t|_1\right\}
+		\end{equation*}
+		\State Line search $ \tau $ using the Armijo rule.
+		\State Update $ \beta^t_{k}=\beta^t_{k}+\tau d^t_{k}$
+		\Until stopping condition is met.
+		\Until stopping condition is met.
+		\Until stopping condition is met.
+	\end{algorithmic}
+\end{algorithm} 
+
+\begin{remark}\label{1}
+	All the above algorithms need to minimize a function of $ \beta_j $ with a non differentiable point $ \beta_j=0 $. Applying subgradient method, we should inspect whether $ \beta_j=0 $ is the minimal point before using Newton method. That is, if 0 belongs to the interval of left and right derivative of the function, we should replace $ \beta_j=0 $ instead.
+\end{remark}
+\begin{remark}\label{2}
+	All the above algorithms are done after hyper parameter $\lambda$ is fixed. In practice, we use a decreasing sequence of values for $\lambda$, starting at the largest value $\lambda_{max}$ for which the entire vector $\beta=0$. Then we exploit \textbf{warm starts}\cite{friedman2010regularization}, i.e., we use $ \beta^{\lambda_k} $ as a starting value for $ \beta^{\lambda_{k+1}} $. It may accelerate since lots of $\beta$ remain zero in the previous step.
+\end{remark}
+\begin{remark}\label{3}
+	In practice, after several complete cycles through all the variables, we just only iterate on the active set (those with nonzero coefficients) till convergence in order to accelerate speed. 
+\end{remark}
+\section{Selecting Tuning Parameter}
+Every $\lambda$ gives a unique model and results in different $\beta$. We try to get the best model based on some criteria.
+
+We split the whole dataset into test set and training set. The test set is used only to measure the goodness of fit of the final model in the last step. We never contaminate the test data. This thought comes from Nested Cross Validation\cite{browne2000cross}.
+
+There are some common criteria.
+\subsection{CV}
+In K-fold cross-validation, the original sample is randomly partitioned into K equal sized subsamples. Of the K subsamples, a single subsample is retained as the validation data for testing the model, and the remaining $ K-1 $ subsamples are used as training data. 
+
+For each $ k=1,...,K $, we fit the model with parameter $ \lambda $ to the
+other $ K-1 $ parts, giving $ \tilde{\beta}^{-k}(\lambda) $ and compute its loss $ \rm LOSS_k(\lambda) $ in predicting the $ k^{th} $ part. Here, $\tilde{\beta}$ can be any estimator. This gives the cross-validation error:
+\begin{equation}
+\rm CV(\lambda)=\frac{1}{K}\sum_{k=1}^K \rm LOSS_k(\lambda)
+\end{equation}
+\begin{equation}
+\lambda^*=\mathop{\arg\min}_{\beta} \rm CV(\lambda)
+\end{equation}
+
+\paragraph{LOSS Function}
+After the model is fitted, we need to define LOSS function for CV. For normal distribution, we use Residual Sum of Square as the LOSS function. For binomial distribution, we have some other choices:
+\begin{itemize}
+	\item Deviance.
+		\begin{equation}
+			\rm Dev_k(\lambda)=\frac{-2}{n/k}\rm Loglik(\tilde{\beta}^{k}(\lambda))
+		\end{equation}
+		Deviance is inverse ratio to Log likelihood function, which is a measure of goodness of fit. Usually, deviance is obtained by log-likelihood ratio which contains the saturated model. However, since the principal use is in the form of the difference of the deviances of two models, this confusion in definition is unimportant. We use deviance on the left-out data with size $n/k$.
+	\item Misclassification Error (ME).
+		\begin{equation}
+		\rm ME=\frac{1}{n/k}\{ \#_i(p_i>0.5\ \&\ y_i=0)+\#_i(p_i<0.5\ \&\  y_i=1)\}
+		\end{equation}
+		All the $ p_i $ and $y_i$ are calculated on the validation set. ME is directly perceived through the sense. We use ME on the left-out data. ME can be treat as discrete type of Deviance.
+\end{itemize}
+
+\paragraph{Shortcoming}
+CV is time-consuming because we need to fit K models. Also, it is too generous, that it, it tends to select more predictors. As a consequence, it may not achieve the goal of sparsity.
+
+\subsection{IC family}
+In this section, we only consider MLE $ \hat{\beta} $ rather than LASSO estimator $ \beta^{L} $. The lower the IC value, the better the model is.
+\subsubsection{Akaike Information Criterion}
+\begin{equation}
+\rm AIC(\lambda)=-2\ln \rm Loglik(\hat{\beta}(\lambda))+2\nu(\lambda)
+\end{equation}
+Here, $ \nu(\lambda)=\rm df(\lambda) $
+
+\paragraph{Motivation}
+Theoretical derivation of AIC is a little complex. First, we use Kullback-Leibler distance $ -K+\rm CONSTANT $ to measure how large is the difference between MLE estimator and true density. $ K=\int p(y) \ln p(y|\hat{\beta})dy $. Then, we apply Central Limit Theorem (CLT) to the score function (first derivative). We use taylor expansion twice and some approximations to prove that $ \rm AIC/n=-K $.
+
+AIC can also be regarded as the compromise between goodness of fit and model complexity.
+
+\paragraph{Shortcoming}
+We can see that there are a lot of approximations and assumptions being used. So AIC is a very crude tool and is generous too. The model selected by AIC asymptotically achieves the smallest error among the candidates.
+\subsubsection{Bayesian Information Criterion}
+BIC is the same as AIC but the penalty is harsher. Thus, BIC tends to choose simpler models.
+\begin{equation}
+\rm BIC(\lambda)=-2\ln \rm Loglik(\hat{\beta}(\lambda))+\nu(\lambda) \ln n
+\end{equation}
+Here, $ \nu(\lambda)=\rm df(\lambda) $
+
+\paragraph{Motivation}
+Theoretical derivation of BIC is quite much complex. We gives prior distribution of estimators (uniform prior) and try to maximize a posterior. We do a taylor expansion at MLE point. Then we do Eigen Value Decomposition of the Hessian Matrix. In the integral part, we use Laplace method to estimate. After using weak law of large numbers and set n to infinity, we get BIC value.
+\paragraph{Comparison with AIC}
+BIC is consistent\cite{burnham2004multimodel}, which is shown below. Also, Yang (2003)\cite{yang2005can} proved that there is no selection criterion that can both achieve consistency and optional in error.
+\subsubsection{Extended Bayesian Information Criterion}
+BIC is sometimes generous too. Chen and Chen has proposed EBIC.
+\begin{equation}
+\rm EBIC_\gamma(\lambda)=-2\ln \rm Loglik(\hat{\beta}(\lambda))+\nu(\lambda) \ln n+2\gamma\nu(\lambda)\ln p
+\end{equation}
+
+\paragraph{Motivation}
+BIC prior is the same to every estimator, which is unreasonable. Suppose a set $ S_j $ is a subset of whole predictors containing $ j $ of them. Instead of assigning probabilities $p(S_j)$ proportional to $ \binom{p}{j} $, as in the ordinary BIC (due to uniform prior distribution), we assign $p(S_j)$ proportional to $ \binom{p}{j}^{-\gamma} $ for some $\gamma$ between 0 and 1. Thus, we derive EBIC value.
+
+\paragraph{Consistency}
+The most important property of EBIC and BIC is consistency.
+\begin{mythm}
+	Suppose $ \lambda_0  $ is the true model. Under some mild conditions with $ n\rightarrow \infty $, we have
+	\begin{equation}
+	P\{\min \rm EBIC_\gamma (\lambda)\leq \rm EBIC_\gamma (\lambda_0) \}\rightarrow 0
+	\end{equation}
+\end{mythm}
+
+The proof of consistency can be seen in the research paper of Chen and Chen\cite{chen2008extended}.
+
+\paragraph{Comparison with BIC}
+We compare the set $ s^* $ selected by the extended BIC with the real model $s$. We define the positive selection rate (PSR) as the ratio $\#(s^*\cap s)/\#(s)$, and the false discovery rate (FDR) as the ratio $\#(s^*-s)/\#(s^*)$. If $\gamma$ travels from 0 to 1, both the positive selection rate and the false discovery rate decrease. However, the decline of PSR is inconspicuous but the decline of FDR is significant. We may choose $ \gamma =0.5,1 $ as recommended.
+
+\begin{remark}
+	All the definitions of IC family is based on MLE. However, we just replace it as the Loglike funtion of LASSO family instead when using them as criteria in LASSO family. Indeed, the perfect consistent property doesn't hold in this situation. There exists some attempts to adjust the model a little to persist the property, for example, Adaptive LASSO\cite{zou2006adaptive} with Extended Regularized Information Criterion (ERIC)\cite{hui2015tuning}. However, these attempts are too specific, limit and unable to generalize.
+\end{remark}
+
+\subsubsection{Degree of Freedom}
+Degree of freedom clearly implies to the model complexity and can be instilled into IC value for comparing two models with different number of parameters. For example, the \rm df in multiple linear regression exactly equals the number of predictors. What is the \rm df in LASSO family needs consideration. The Stein's unbiased risk estimation (SURE) theory (Stein 1981)\cite{stein1981estimation} gives a insightful generalization to LASSO.
+
+\paragraph{Definition of df}
+Suppose $ \hat{y}=f(y) $ represent its fit and we assume $ y\sim (\mu,\sigma^2I) $, where $\mu$ is the true mean and $ \sigma^2 $ is the common variance. We define
+\begin{equation}
+	\rm df(\hat{y})=\sum_{i=1}^{n}\rm cov(\hat{y_i},y_i)/\sigma^2
+\end{equation}
+If $ \hat{y} $ is a linear smoother, i.e., $ \hat{y}=Sy $, we simply obtain $ \rm df(\hat{y})=tr(S) $, which relegate to the effective degrees of freedom. Effective degrees of freedom\cite{huynh1976estimation} is quite common in calculating Generalized Cross Validation (GCV)\cite{golub1979generalized}, which is a method in selecting best bandwidth $ h $ of non parametric regression.
+\begin{mythm}(Stein's Lemma)
+	Suppose $ \hat{y} $ is almost differentiable and $ \nabla\bullet\hat{y}=\sum_{i=1}^{n}\partial\hat{y_i}/\partial y_i $. If $y\sim \rm N(\mu,\sigma^2I)$, then
+	\begin{equation}
+	\sum_{i=1}^{n}\rm cov(\hat{y_i},y_i)/\sigma^2=\rm E[\nabla\bullet\hat{y}]
+	\end{equation}
+\end{mythm}
+
+Even if $ \nabla\bullet\hat{y} $ depends on $ y $, we can get an unbiased estimate for \rm df: $ \hat{\rm df}(\hat{y})\triangleq\nabla\bullet\hat{y}=tr(\frac{\partial \hat{y}}{\partial y}) $.
+
+\paragraph{Df of LASSO}
+The LASSO  fit is not a linear smoother, which may cause quite difficulty. The first line of thinking is to turn LASSO fit into a linear one, i.e., regard LASSO as a weighted Ridge, which we have already discussed before. Hence, we may get $ \rm df(\beta^L)=tr(S) $, where $ S $ is the smooth matrix.
+
+Alternative way is derived from Stein's Lemma:
+\begin{mythm}
+	Denote the set of non-zero elements (support, or active set) of $ \beta_{\lambda}^L $ as $ A(\lambda) $, then
+	\begin{equation}
+	\nabla\bullet\hat{y}=tr(H_{\lambda})=\#{A(\lambda)}
+	\end{equation}
+	where $ H_{\lambda}=X_A(X_A^TX_A)^{-1}X_A^T $ is the projection matrix.
+\end{mythm}
+
+The proof is shown by Zou, Hastie and Tibshirani\cite{zou2007degrees}.
+
+From the explicit form of $ \beta^L $ before, we may find that the LASSO fit $ y^L $ is the residual from projecting $ y $ onto a polyhedron, thus is a function of $ y $ and hence continuous and almost differentiable. By the theorem, the number of non-zero coefficients is an unbiased estimate for the degrees of freedom of the Lasso.
+
+\paragraph{Df of Group LASSO}
+By the chain rule, we have $ tr(\frac{\partial \hat{y}}{\partial y})=tr(\frac{\partial \beta^{GL}}{\hat{\beta}}) $. Recall that $ {\beta_{G_j}}^{GL}=s[\hat{\beta}_{G_j},\lambda\sqrt{p_j}]\triangleq \rm sign(\hat{\beta}_{G_j})(|\hat{\beta}_{G_j}|-\lambda\sqrt{p_j})_+ $, where $\hat{\beta}_{G_j}$ is the OLS of residual. We thus can calculate the partial. Hence we get the unbiased estimator of DF:
+\begin{align}
+	\hat{\rm df}^{GL}&=\sum_{j=1}^J I(|\hat{\beta}_{G_j}|>\lambda\sqrt{p_j})+\sum_{j=1}^J\{1-\frac{\lambda\sqrt{p_j}}{|\hat{\beta}_{G_j}|}\}_{+}(p_j-1)\\
+				&=\sum_{j=1}^J I(|\beta_{G_j}^{GL}|>0)+\sum_{j=1}^J \frac{\beta_{G_j}^{GL}}{\hat{\beta}_{G_j}}(p_j-1)
+\end{align}
+\begin{remark}
+	In order to use SURE theory, we assume the response variable is Normal distributed. We simply neglect this restriction in practice.
+\end{remark}
+\begin{remark}
+	We can get the unbiased estimator of Sparse Group LASSO too, however, both the GL and SGL estimators are too cumbersome. In numerical experiment, we just omit the minor term and use non-zero predictors size as the df. The reason why it works is that the impact on df is quite mimic.
+\end{remark}
+\section{Other Models}
+Apart from LASSO based logistic model, we have many other choices. Although as we have discussed in the backgroud that we only apply logistic model to achieve sparsity, we still state some other model for comparison.
+\subsection{Multiply Layer Perceptron}
+A multilayer perceptron\cite{gardner1998artificial} (MLP) is a class of feed-forward artificial neural network where connections between the units do not form a cycle. It can be viewed as a logistic regression classifier where the input is first transformed using a learned non-linear transformation \textbf{$ f $}. This transformation projects the input data into a space where it becomes linearly separable. Figure \ref{fig:mlp1} provides the flow sheet of this approach.
+
+\begin{figure}[h]
+	\centering
+	\includegraphics[height=0.27\textheight]{pics/mlp1}
+	\caption{Flowsheet of multilayer perceptron. Suppose the input is $ x_i=(x_{i1},\cdots,x_{i5}) $. Each circle represents a neuron and each arrow is a connection between layers. The output of each neuron is calculated by a non-linear function $ f $ of the combination of the input. In this hypothetic example, there is just one hidden layer. We use a softmax function at last to turn output value into a probability.\label{fig:mlp1}}
+\end{figure}
+
+
+To take a closer look at the structure, we may ignore the hidden layer and set the dimension of input $ x_i $ to be $p=3$ and show the single layer computation in Figure \ref{fig:mlp2}.
+\begin{figure}[h]
+	\centering
+	\includegraphics[height=0.22\textheight]{pics/mlp2}
+	\caption{Flowsheet of a simplified multilayer perceptron with no hidden layers. Suppose the input is $ \bf{x_i}=(x_{i1},x_{i2},x_{i3}) $. The output of each neuron is calculated by a non-linear function $ f $ of the sum of its input plus a bias $b$ as in equation (\ref{eq1}).\label{fig:mlp2}}
+\end{figure}
+Mathematically, a neuron in the $ (t+1) $th layer $ x(t+1) $ is adjusted from $x(t)$ via
+\begin{equation}\label{eq1}
+x(t+1)=f[b(t)+w(t)^Tx(t)],
+\end{equation}
+where $ f $ is the activation function, $ b(t) $ is the so-called bias term at the $t$th layer, and $ w(t) $ is the weight vector of the \textit{t}th layer.
+
+An MLP algorithm repeats the above calculation for a number of layers and stops at the $T$th layer. In the output layer or the \textit{T}th layer, class-membership probabilities can be obtained from the softmax function. 
+
+To train an MLP, we need to learn all the parameters of the model including the weight $ w $ and the bias $ b $. The estimation is usually carried out under the stochastic gradient descent algorithm with minibatches\cite{bottou2010large}. Evaluating the gradients can be achieved through the backpropagation algorithm\cite{hecht1988theory} (a special case of the chain-rule of derivation). Software development for deep learning has been abundant and is rapidly evolving in the recent decade. In particular, open source libraries such as \textbf{mxnet} enable non-experts to easily design, train and implement deep neural networks. We will carry out all the computation in this paper using \textbf{mxnet} since it supports languages such as \textbf{Python} or \textbf{R} and can train quickly on multiple GPUs. For more information about the software visit $\mbox{http://mxnet.incubator.apache.org/index.html}$. 
+
+
+In practice, the following operational parameters for the MLP need to be tuned by the user:
+\begin{description}\label{para}
+	\item[Layers] Number of layers and number of neurons in each layer. Usually the number of neurons can be very large while the number of layers may be relatively moderate or small. The number of neurons in different layers may also differ.	
+	\item[Activation functions] Activation functions in each layer. All three functions can be used while the Relu function is usually preferred for the simplicity of computation.
+	\begin{figure}[htbp]
+		\centering                                                      
+		\subfigure[Sigmod function]{   
+			\begin{minipage}{5cm}
+				\centering 
+				\includegraphics[scale=0.3]{pics/sigmod.png} 
+			\end{minipage}
+		}
+		\subfigure[Tanh function]{
+			\begin{minipage}{5cm}
+				\centering                                                      
+				\includegraphics[scale=0.3]{pics/tanh.png}               
+			\end{minipage}
+		}
+		\subfigure[Relu function]{
+			\begin{minipage}{5cm}
+				\centering                                                      
+				\includegraphics[scale=0.3]{pics/relu.png}               
+			\end{minipage}
+		}
+		\caption{Activation functions.\label{fig:act}} 
+		
+	\end{figure}
+	
+	\item[Loss function] Loss function in the output layer. Usually we choose the softmax function.
+	\begin{equation}\label{softmax}
+	f_k(x)=\mbox{softmax}_k(x)=\frac{\exp(\beta_k^Tx)}{\sum_{m=1}^M \exp(\beta_m^Tx)}, \qquad k=1,\cdots,M.
+	\end{equation} 
+	\item[Number of round or epoch] The number of iterations over the sample data to train the model parameters. Often we need very large number of round to achieve satisfactory numeric accuracy, similar to other nonlinear programming problems. One may specify the option {\tt num.round} in the software.
+	\item[Learning rate] The step size in gradient descent method. This tuning parameter can be optimized via the cross validation. Alternatively many practitioners recommended to use a small value such as 0.1 or 0.01. One may specify the option {\tt learning.rate} in the software.
+	\item[Initializer]  The initialization scheme for parameters which specifies the unknown weight at the beginning, usually drawn from a uniform design. One may specify the option {\tt initializer} in the software.
+	\item[Array batch size] The batch size used for array training. The whole training data is usually divided into batches to facilitate the computing.
+	
+\end{description}
+
+There is still limited discussion on how to set all these options to optimize the classification performance. Depending on the scale of the problem and complexity of the data, settings of real world examples using MLP need to be addressed case by case.
+
+After the model architectures are constructed, we begin to update the parameters. Samely as logistic regression, we use gradient decent method to minimize the LOSS of true output and the predicted output. Also, the LOSS is minus log likelihood, which is equivalent to cross entropy. 
+\begin{equation}
+	L=\sum_{i=1}^n L(y_i,f(x_i))=\sum_{i=1}^n -\ln f_{y_i}(x_i)
+\end{equation}
+
+After all parameters are learned, every input $ \bf{x_i} $ can lead to a probability vector $f(x_i)$ of length \textit{M} through the softmax loss.
+\section{Final Model Evaluation}
+After we select the best hyper parameter $ \lambda $ in section 3, the total model is fixed. Thus, we may get the coefficients $ \tilde{\beta} $ of it using algorithms in section 2. Following that, it is easy for us to make prediction:
+\begin{equation}
+P(\hat{y}_i=1|\bf{x_i})=\frac{1}{1+e^{-\bf{x_i}^T\tilde{\beta}}} 
+\end{equation}
+where $\bf{x_i}$ is a sample in the test dataset, $\hat{y}_i$ is the prediction of $y_i$. Thus, we may get the probability matrix $ \bf{P}\in R^{n\times2} $, where $\bf{P_{ij}}=P(\hat{y}_i=j)$.
+
+We need to select a threshold $ c,\ 0\leq c\leq 1 $. Then we forcast $ \hat{y}_i=\rm I(\bf{P}_{i2}>c) $.
+\subsection{Single Model Evaluation}
+\subsubsection{Correct Classification Rate}
+Correct Classification Rate (CCR) or Accuracy (ACC) or Correct Classification Probability (CCP) is the intuition to evaluate a model. We set threshold $c=0.5$ as default.
+\begin{equation}
+	\rm CCR=P(y=\hat{y})
+\end{equation}
+Using the law of total probability, the equation above can be re-written as
+\begin{equation}
+CCR=\sum_{m=1}^M P(y=m)P(\hat{y}=m|y=m)\triangleq\sum_{m=1}^M \rho_m CCR_m
+\end{equation}
+where the probability $P(\hat{y}=m|y=m)$ can be regarded as a class-specific CCR for the $m$th category. When $M=2$, the two class-specific CCR values are commonly referred to as the sensitivity and the specificity.
+ CCR directly assesses whether the mode-based classification for a subject is identical to his true class status. Its empirical version is simply the proportion of correctly classified subjects in the sample.
+\begin{equation}
+\widehat{\rm CCR}=\frac{1}{n}\sum_{i=1}^nI(y_i=\hat{y}_i).
+\end{equation}
+Such a simple formula facilitates the application of CCR in many real problems, especially when $M$ is large. In fact, the computation time for CCR does not increase as the number of categories increases. CCR and its complement, misclassification rate, are commonly used in machine learning literature.
+In practice, we replace probability as frequency in test dataset.
+
+Though it provides a straightforward assessment on the performance of a fixed sample, the estimated overall CCR value is quite sensitive to the distribution of different classes in the particular data sample and thus cannot lend support to external validity for some studies where prevalence information is unavailable. For example, CCR values obtained for low-risk disease groups may be dominated by the specificity.
+
+The implementation of CCR is quite easy after a classification is done. We will use the function \textbf{CCR} in \textbf{R} package \textbf{mcca} in the following illustration.
+
+\subsubsection{Area Under ROC Curve}
+It is too assertive to set a single threshold, hence we introdue AUC. Receiver Operating Characteristic (ROC) curve summarizes the model’s performance by evaluating the tradeoffs between true positive rate (TPR, sensitivity) and false positive rate (FPR, 1-specificity), where $ \rm FPR=P(\hat{y}>c|y=0) $ and $ \rm TPR=P(\hat{y}>c|y=1) $.
+
+The reason why we introduce TPR and FPR is that in unbalanced $y$, i.e. $ \frac{\#\{y=1\}}{\#\{y=0\}}=100 $, it is meaningless to compute CCR since a classifier which turns all precitions as $\hat{y}=1$ can achieve high value. We consider conditional probability instead.
+\begin{equation}
+	P(y=\hat{y})=P(\hat{y}=1|y=1)\cdot P(y=1)+P(\hat{y}=0|y=0)\cdot P(y=0)
+\end{equation}
+
+The ROC of a perfect predictive model has TPR equals 1 and FPR equals 0. This curve will touch the top left corner of the graph and the area under it is 1.
+
+AUC is the area under ROC curve. It is equivalent to the probability that a randomly chosen positive example is ranked higher than a randomly chosen negative example\cite{fawcett2006introduction}.
+
+\begin{equation}
+	\rm AUC=\int \rm TPR(c) \ \mathrm{d}\rm FPR(c)=P(\hat{y}|_{y=1}>\hat{y}|_{y=0})
+\end{equation}
+
+In practice, we replace probability as frequency in test dataset.
+
+Note that HUM (hyper volumn under manifold)\cite{li2008roc} is the generalization of AUC. Thus, in the following sections, we equate both of these proper noun.
+
+
+\subsubsection{Polytomous Discrimination Index}
+Polytomous discrimination index (PDI)\cite{van2012assessing} is a recently proposed diagnostic accuracy measure for multi-category classification. Similar to HUM, PDI is also evaluating the probability of an event related to simultaneously classifying $ M $
+subjects from $ M $ categories. While HUM is pertaining to the event that all $ M $ subjects are correctly
+identified to their corresponding categories, PDI is pertaining to the number of subjects in the set of $ M $ subjects that are correctly identified to his/her category. 
+
+To define the PDI, we consider a random sample that involves $ M $ subjects and each subject is
+chosen from one of the $ M $ distinct categories. Without loss of generality, we assume that the \textit{i}th subject is from the
+\textit{i}th category. The classification decision is achieved via a joint comparison of the $ M $ subjects. Using earlier notations, for a classification model, we may denote the probability of placing a subject from category \textit{i} into category \textit{j} by $ \bf P_{ij} $. A class $i$ subject can be correctly classified if $\bf P_{ii}>\bf P_{ji}$ for all $j \neq i$. For a fixed category \textit{i}, we may define the class-specific PDI to be
+\begin{equation}
+\rm PDI_i=P(\bf P_{ii}>\bf P_{ji} \ \ j \neq i|y_i=i)
+\end{equation}
+and the overall PDI to be
+\begin{equation}
+\rm PDI=\frac{1}{M}\sum_{m=1}^M \rm PDI_m.
+\end{equation}
+
+In practice, we replace probability as frequency in test dataset and we consider each situation that involves M subjects
+and each subject is chosen from one of the M distinct categories.
+
+When $M=2$, PDI also reduces to AUC and thus can be viewed as a generalization of AUC for the multi-class problem. However, when $M\ge 3$, PDI value is always greater than HUM for a classifier. Models or diagnostic biomarkers with poor PDI values usually also have poor HUM values. The lower bound for PDI is $1/M$, corresponding to random guess. 
+
+PDI is not as widely applied as HUM and CCP to assess the diagnostic and classification accuracy. We suggest its value should also be reported along with other major accuracy measures. Specifically, we would recommend computing PDI for big data studies and screen out unnecessary biomarkers whose PDI values are below a satisfactory level.  The computation of PDI is implemented in function \textbf{PDI} in \textbf{R} package \textbf{mcca}.
+\subsection{Model Comparison}
+When comparing two models used to make prediction or classification for the same data, it is usually not advisable to only check the difference of a single accuracy measure. For example, it is noted by many authors that the difference of HUM between two models may not be informative when the baseline model is already quite accurate. We next consider two more appropriate measures for comparing two models. 
+
+We need more notations. Now suppose that in addition to model ${\cal M}_1$ introduced earlier, more variable(s) are included and we construct a model\textit{${\cal M}_2 $} that is based on a set of predictors $ \Omega_2 \supset \Omega_1$. We use the nested-structure notations as they are widely discussed in the literature. We note that there are studies where the accuracy improvement occurs among non-nested models as well. Our proposed methods can apply with slight modification. The newly constructed model \textit{$ {\cal M}_2 $} generates another probability vector $ p_i({\cal M}_2)=(p_{i1}({\cal M}_2),...,p_{iM}({\cal M}_2)) $ for the $i$th subject.
+\subsubsection{Net Reclassification Improvement}
+Net reclassification improvement (NRI) \cite{pencina2011extensions} is a numeric characterizations of accuracy improvement for diagnostic tests or classification models and were shown to have certain advantage over analyses based on ROC curves.
+
+While ROC-based measures have been widely adopted, it has been argued by many authors that such measures may not be good criteria to quantify improvements in diagnostic or classification accuracy when the added value of a new predictor to an existing model is of interest. NRI can address these limitations since it essentially calculates the increase in correct classification between models.
+
+The multi-category NRI from a baseline model \textit{$ {\cal M}_1 $} to a more complicated model  \textit{$ {\cal M}_2 $} is
+\begin{equation}
+NRI=\sum_{m=1}^{M}\frac{1}{M}\{CCP_m({\cal M}_2)-CCP_m({\cal M}_1)\}.
+\end{equation}
+NRI directly reflects how often the new model corrects the incorrectly classified cases in the old model and is therefore very appealing to practitioners. We note another interpretation for NRI is the difference of Youden's index of the two models.
+
+For additional discussion of these recent
+developments, Hilden\cite{hilden2014note} pointed out that NRI sometimes may inflate the prognostic performance of added biomarkers and Kerr\cite{kerr2014net} argued that NRI may perform poorly under some nonlinear data generating mechanisms. Thus users of these popular metrics should also exercise caution in practice.
+
+
+\section{Software}
+\textbf{R} is a programming language and free software environment for statistical computing and graphics. Due to its simplicity to handle, in this dissertation, we implement \textbf{R} as our main software. In the deep learning approach, we will also use \textbf{python} to achieve more structures. All the following packages can be downloaded from The Comprehensive R Archive Network (CRAN).
+\subsection{Models}
+For different model, we adopt different library. Every of them is well established and has been tuned many times, hence, we may feel free to use for sure. Note that since there are more than one libraries to achieve LASSO for example, we just select the prominent one.
+\begin{itemize}
+	\item LASSO. Package \textbf{glmnet}.
+	\item Group LASSO. Package \textbf{grpreg}.
+	\item Sparse Group LASSO. Package \textbf{msgl}.
+	\item Multiple Layer Perceptron. Package \textbf{mxnet} or \textbf{Python} framework \textbf{TensorFlow}.
+\end{itemize}
+
+Actually, I try to read the source codes of these LASSO family packages. Sadly, quite amount of them are written in Fortran and C, which are encapsulated and hence impossible for me to read. However, what rejoice me is that both the authors have given their algorithms and the simply versions is discussed in section 3.
+\subsection{Hyper Parameter Tuning}
+For CV, we just manually fit models K times and calculate on the validation set. For information criteria, we first calculate the Log likelihood and then the IC value from their definitions.
+\subsection{Model Evaluation}
+Here, we use package \textbf{mcca} which is donated myself. The function \textbf{hum} relegate to AUC for binary output. To compute standard error, we use function \textbf{ests} for single model evaluation and \textbf{estp} for model comparison.
+
+
+\section{Singapore Eye Dataset}
+During my summer research in Singapore, I got a database about Singapore  Eye Study (SES). It contains around 2700 samples of 300 instances each, where each sample represents a single person and each instance is a body index. There are some indexes I concern most, i.e. heart attack, stroke, hypertension, diabetes (each of them is a categorical variable). Since these indexes are vital for people and people won’t be aware of them until they go to see a doctor, it is quite meaningful for us to forecast these diseases. In this research, I will try to get whether these mortal diseases can be forecasted by some common and easily-accessed eye indexes such as cataract, myopia, eye trauma, and so on. If there exists high correlation or I can draw a stable equation between these indexes, it will be a gospel to these potential patients.
+\subsection{Preprosessing}
+The Singapore  Eye Study (SES) database conduct around 3000 people’s 300 indexes, mainly separated into 6 parts: 
+\begin{itemize}
+	\item Basic information (age, height,...),
+	\item Blood data (glucose, cholesterol,...),
+	\item Eye data (myopia, blindness, sphere,...),
+	\item Eye disease (cataract,...),
+	\item Self-information (education, job, smoke, income,...),
+	\item Main disease (heart attack, stroke, hypertension, diabetes,...).
+\end{itemize}
+      
+
+First, we clean the data by removing or imputing missing entries. We inspect the dataset and delete columns and rows which have too many NA values until there exists less than 2\% NAs. Then we assort variables less than 6 different values as factors and others as continuous predictors. Finally, we fill in the missing values with their mode and median separately.
+
+By putting main disease variable into the output term and other variables into input terms, we may establish a logistic regression model. After adding a penalty term, we deduce the refined model. 
+
+In this dissertation, we only focus on heart attack (variable "mi") as the output and it is a binary factor.
+
+\subsection{Training and Test Set}
+First, we divide the whole dataset randomly into two parts: a training data and a test data. We use the training data
+to build the statistical model and the test data to assess the out-of-sample performance. The ratio between $ y=0/1 $ of the training and test data is the same, and we use approximate 1/10 observations as the test. Here $y=1$ means that this person is not suffered from heart attack.
+
+Then, we use One Hot Encoding to turn all the factors into dummy variables. Figure \ref{fig=df} shows first several rows and columns.  Dimension of training input:(2949, 339); dimension of test input:(327, 339); length of training output:(2949); length of test output:(327).
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/df}
+	\caption{First several rows and columns of dataset.\label{fig=df}}
+\end{figure}
+
+\subsection{LASSO}
+We use a series of $\lambda$ to fit the logistic LASSO.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/coef_path_l}
+	\caption{Coefficient path of $ \lambda $. Each curve represents a coefficient (labelled on the left). The top panel is the number of non-zero variables.\label{fig=cpl}}
+\end{figure}
+Figure \ref{fig=cpl} shows the coefficient path of $ \lambda $ where lasso estimates as a function of $ \lambda $. If $ \lambda $ grows bigger, the non-zero variables become smaller. All the coefficients are standardized for comparison.
+
+Now we determine the best $ \lambda $ and the best model from this series of $ \lambda $.
+
+\subsubsection{Best lambda through CV: dev}
+We choose the best model through 10 fold CV: dev.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/lcvdev}
+	\caption{The red dot is the average of 10 result, and the upper and lower bound is the one standard error. The left vertical line corresponds to the minimum error. The top panel is the number of non-zero variables.\label{fig=lcvdev}}
+\end{figure}
+
+After choosing the best model, we may get these results:
+\begin{itemize}
+	\item The best lambda is 0.0040135.
+	\item There are 63 no-zero variables.
+	\item Correct classification rate of training data: 0.9677857
+	\item Area under curve of training data: 0.9367191
+	\item Correct classification rate of test data: 0.9602446
+	\item Area under curve of test data: 0.8455043
+\end{itemize}
+ 
+Also, we may get $ \beta^L $ and the final model. Since there are too many non-zero variables selected, we omit them here. You may take a look at the link in the appendix.
+
+\subsubsection{Best lambda through CV: ME}
+We choose the best model through 10 fold CV: ME.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/lcvme}
+	\caption{The red dot is the average of 10 result, and the upper and lower bound is the one standard error. The left vertical line corresponds to the minimum error. The top panel is the number of non-zero variables.\label{fig=lcvme}}
+\end{figure}
+
+After choosing the best model, we may get these results:
+\begin{itemize}
+	\item The best lambda is 0.0111678.
+	\item There are 14 no-zero variables.
+	\item Correct classification rate of training data: 0.9637165
+	\item Area under curve of training data: 0.9105655
+	\item Correct classification rate of test data: 0.9633028
+	\item Area under curve of test data: 0.8523505
+\end{itemize}
+
+Also, we may get $ \beta^L $ and the final model.
+\begin{align*}
+\ln\frac{p}{1-p}&=(-0.87) + ( 0.32)*gender2 + (-0.23)*agegp25\\ &+ (-0.19)*anti\_ht1 + (-0.97)*anti\_chol1 + (-0.49)*drugs\_others1 \\ &+ (-0.07)*hypertension1+ ( 0.35)*chol + ( 0.01)*GFR\_EPI \\&+ (-0.16)*bvalogr\_USA2 + ( 0.33)*smkyn2 + (-0.19)*smk\_cat3 \\&+ ( 1.94)*ang2 + (-0.47)*R\_retino\_cat2
+\end{align*}
+
+The definition of all these predictors will be explained in the next section.
+
+\subsubsection{Best lambda through BIC}
+We choose the best model through BIC. Here the definition of BIC is:
+\begin{equation}
+\rm BIC(\lambda)=-2\ln \rm Loglik(\beta^L(\lambda))+\rm df(\lambda) \ln n
+\end{equation}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/lbic}
+	\caption{The red dot is bic value of a specific lambda. The vertical line corresponds to the minimum error.\label{fig=lbic}}
+\end{figure}
+
+After choosing the best model, we may get these results:
+\begin{itemize}
+	\item The best lambda is 0.0101757.
+	\item There are 15 no-zero variables.
+	\item Correct classification rate of training data: 0.9637165
+	\item Area under curve of training data: 0.9126357
+	\item Correct classification rate of test data: 0.9633028
+	\item Area under curve of test data: 0.8505249
+\end{itemize}
+
+Also, we may get $ \beta^L $ and the final model.
+\begin{align*}
+\ln\frac{p}{1-p}&=(-0.90) + ( 0.38)*gender2 + (-0.29)*agegp25\\ &+
+ (-0.19)*anti\_ht1 + (-0.99)*anti\_chol1 + (-0.52)*drugs\_others1 \\ &+ (-0.14)*hypertension1 + ( 0.37)*chol + ( 0.01)*GFR\_EPI  \\&+  
+( 0.02)*srepcylr + ( 0.35)*smkyn2 + (-0.20)*smk\_cat3 \\&+ 
+( 1.98)*ang2 + (-0.56)*R\_retino\_cat2+ (-0.19)*bvalogr\_USA2
+\end{align*}
+
+\subsubsection{Best lambda through EBIC}
+We choose the best model through EBIC with $ \gamma=0.5 $.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/lebic}
+	\caption{The red dot is bic value of a specific lambda. The vertical line corresponds to the minimum error.\label{fig=lebic}}
+\end{figure}
+
+After choosing the best model, we may get these results:
+\begin{itemize}
+	\item The best lambda is 0.0162026.
+	\item There are 10 no-zero variables.
+	\item Correct classification rate of training data: 0.9633774
+	\item Area under curve of training data: 0.9001441
+	\item Correct classification rate of test data: 0.9633028
+	\item Area under curve of test data: 0.8461890
+\end{itemize}
+
+Also, we may get $ \beta^L $ and the final model.
+\begin{align*}
+\ln\frac{p}{1-p}&=(-0.48) + ( 0.08)*gender2 + (-0.11)*anti\_ht1\\ &+
+(-0.92)*anti\_chol1 + (-0.32)*drugs\_others1 + ( 0.27)*chol \\ &+
+ ( 0.01)*GFR\_EPI + ( 0.21)*smkyn2 + (-0.15)*smk\_cat3  \\&+  
+( 1.77)*ang2 
+\end{align*}
+
+
+\subsection{Group LASSO}
+Before fitting, group should be defined. Here we bind all the dummy variables of a single variable in a group and use an index vector which describes the grouping of the coefficients. It is a vector of consecutive integers and if two variables share the same value, we take them in a group.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/index}
+	\caption{Index vector. Predictors with same number are in the same group.\label{fig=index}}
+\end{figure}
+
+We use a series of $\lambda$ to fit the logistic Group LASSO.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/coef_path_gl}
+	\caption{Coefficient path of lambda. Each curve represents a coefficient.\label{fig=cpgl}}
+\end{figure}
+Figure \ref{fig=cpgl} shows the coefficient path of lambda where lasso estimates as a function of $ \lambda $. If $ \lambda $ grows bigger, the non-zero variables become smaller. 
+
+Now we determine the best $ \lambda $ and the best model from this series of $ \lambda $.
+
+\subsubsection{Best lambda through CV: dev}
+We choose the best model through 10 fold CV: dev.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/glcvdev}
+	\caption{The red dot is the average of 10 result, and the upper and lower bound is the one standard error. The vertical line corresponds to the minimum error. The top panel is the group number of non-zero variables.\label{fig=glcvdev}}
+\end{figure}
+
+After choosing the best model, we may get these results:
+\begin{itemize}
+	\item The best lambda is 0.0063906.
+	\item There are 37 no-zero variables.
+	\item Correct classification rate of training data: 0.9647338
+	\item Area under curve of training data: 0.9200487
+	\item Correct classification rate of test data: 0.9602446
+	\item Area under curve of test data: 0.8386581
+\end{itemize}
+
+Also, we may get $ \beta^{GL} $ and the final model. Since there are too many non-zero variable selected, we omit it here. You may take a look at the link in the appendix.
+
+\subsubsection{Best lambda through CV: ME}
+We choose the best model through 10 fold CV: ME.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/glcvme}
+	\caption{The red dot is the average of 10 result, and the upper and lower bound is the one standard error. The vertical line corresponds to the minimum error. The top panel is the group number of non-zero variables.\label{fig=glcvme}}
+\end{figure}
+
+After choosing the best model, we may get these results:
+\begin{itemize}
+	\item The best lambda is 0.008448.
+	\item There are 19 no-zero variables.
+	\item Correct classification rate of training data: 0.9640556
+	\item Area under curve of training data: 0.9149669
+	\item Correct classification rate of test data: 0.9633028
+	\item Area under curve of test data: 0.8322684
+\end{itemize}
+
+Also, we may get $ \beta^{GL} $ and the final model. Since there are too many non-zero variable selected, we omit it here. You may take a look at the link in the appendix.
+
+
+\subsubsection{Best lambda through BIC}
+We choose the best model through BIC. Here the definition of BIC is:
+\begin{equation}
+\rm BIC(\lambda)=-2\ln \rm Loglik(\beta^{GL}(\lambda))+\rm df(\lambda) \ln n
+\end{equation}
+As discussed before, the unbiased estimator of DF is quite complex and is not practical in use. Thus, we throw the complicated minor term.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/glbic}
+	\caption{The red dot is bic value of a specific lambda. The vertical line corresponds to the minimum error.\label{fig=glbic}}
+\end{figure}
+
+After choosing the best model, we may get these results:
+\begin{itemize}
+	\item The best lambda is 0.0092717.
+	\item There are 17 no-zero variables.
+	\item Correct classification rate of training data: 0.9640556
+	\item Area under curve of training data: 0.9133049
+	\item Correct classification rate of test data: 0.9633028
+	\item Area under curve of test data: 0.8343222
+\end{itemize}
+
+Also, we may get $ \beta^{GL} $ and the final model. Since there are too many non-zero variable selected, we omit it here. You may take a look at the link in the appendix.
+
+\subsubsection{Best lambda through EBIC}
+We choose the best model through EBIC with $ \gamma=0.5 $.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/glebic}
+	\caption{The red dot is ebic value of a specific lambda. The vertical line corresponds to the minimum error.\label{fig=glebic}}
+\end{figure}
+
+After choosing the best model, we may get these results:
+\begin{itemize}
+	\item The best lambda is 0.0152026.
+	\item There are 9 no-zero variables.
+	\item Correct classification rate of training data: 0.9630383
+	\item Area under curve of training data: 0.9036424
+	\item Correct classification rate of test data: 0.9633028
+	\item Area under curve of test data: 0.8409402
+\end{itemize}
+
+Also, we may get $ \beta^{GL} $ and the final model.
+\begin{align*}
+\ln\frac{p}{1-p}&=(-0.75) + ( 0.13)*gender2 + (-0.15)*anti\_ht1\\ &+
+(-0.93)*anti\_chol1 + (-0.37)*drugs\_others1 + ( 0.30)*chol \\ &+
+( 0.01)*GFR\_EPI + ( 0.35)*smkyn2 + ( 1.81)*ang2
+\end{align*}
+
+\subsection{Sparse Group LASSO}
+As we have discussed before, $ \alpha=0.5,1 $ is two recommended choices to balance positive selection rate (PSR) and false discovery rate (FDR). In this paper, we just use $ \alpha=0.5$
+
+We use a series of $\lambda$ to fit the logistic Sparse Group LASSO.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/coef_path_sgl}
+	\caption{Coefficient path of lambda. Each curve represents a coefficient.\label{fig=cpsgl}}
+\end{figure}
+Figure \ref{fig=cpsgl} shows the coefficient path of lambda where lasso estimates as a function of $ \lambda $. If $ \lambda $ grows bigger, the non-zero variables become smaller. 
+
+Now we determine the best $ \lambda $ and the best model from this series of $ \lambda $.
+
+\subsubsection{Best lambda through CV: dev}
+We choose the best model through 10 fold CV: dev.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/sglcvdev}
+	\caption{The red dot is the average of 10 result The vertical line corresponds to the minimum error.\label{fig=sglcvdev}}
+\end{figure}
+
+After choosing the best model, we may get these results:
+\begin{itemize}
+	\item The best lambda is 0.003403494
+	\item There are 74 no-zero variables.
+	\item Correct classification rate of training data: 0.9671075
+	\item Area under curve of training data: 0.9402350
+	\item Correct classification rate of test data: 0.9602446
+	\item Area under curve of test data: 0.8404838
+\end{itemize}
+
+Also, we may get $ \beta^{SGL} $ and the final model. Since there are too many non-zero variable selected, we omit it here. You may take a look at the link in the appendix.
+
+\subsubsection{Best lambda through CV: ME}
+We choose the best model through 10 fold CV: ME.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/sglcvme}
+	\caption{The red dot is the average of 10 result. The vertical line corresponds to the minimum error.\label{fig=sglcvme}}
+\end{figure}
+
+After choosing the best model, we may get these results:
+\begin{itemize}
+	\item The best lambda is 0.005705989
+	\item There are 38 no-zero variables.
+	\item Correct classification rate of training data: 0.9657511
+	\item Area under curve of training data: 0.9245413 
+	\item Correct classification rate of test data: 0.9602446
+	\item Area under curve of test data: 0.8457325
+\end{itemize}
+
+Also, we may get $ \beta^{SGL} $ and the final model. Since there are too many non-zero variable selected, we omit it here. You may take a look at the link in the appendix.
+
+
+\subsubsection{Best lambda through BIC}
+We choose the best model through BIC. Here the definition of BIC is:
+\begin{equation}
+\rm BIC(\lambda)=-2\ln \rm Loglik(\beta^{SGL}(\lambda))+\rm df(\lambda) \ln n
+\end{equation}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/sglbic}
+	\caption{The red dot is bic value of a specific lambda. The vertical line corresponds to the minimum error.\label{fig=sglbic}}
+\end{figure}
+
+After choosing the best model, we may get these results:
+\begin{itemize}
+	\item The best lambda is 0.012505337
+	\item There are 10 no-zero variables.
+	\item Correct classification rate of training data: 0.9640556
+	\item Area under curve of training data: 0.9070127 
+	\item Correct classification rate of test data: 0.9633028
+	\item Area under curve of test data: 0.8400274
+\end{itemize}
+
+Also, we may get $ \beta^{SGL} $ and the final model.
+\begin{align*}
+\ln\frac{p}{1-p}&=(-2.265) + (0.118)*gender2 + ( -0.002)*age\\ &+
+( -0.104)*anti\_ht1 + ( -0.477)*anti\_chol1 + ( -0.226)*drugs\_others1 \\ &+
+(0.166)*chol + (0.006)*GFR\_EPI + (0.207)*smkyn2 \\&+
+(0.947)*ang2
+\end{align*}
+
+\subsubsection{Best lambda through EBIC}
+We choose the best model through EBIC with $ \gamma=0.5 $.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/sglebic}
+	\caption{The red dot is ebic value of a specific lambda. The vertical line corresponds to the minimum error.\label{fig=sglebic}}
+\end{figure}
+
+After choosing the best model, we may get these results:
+\begin{itemize}
+	\item The best lambda is 0.014855845
+	\item There are 9 no-zero variables.
+	\item Correct classification rate of training data: 0.9630383
+	\item Area under curve of training data: 0.9036008
+	\item Correct classification rate of test data: 0.9633028
+	\item Area under curve of test data: 0.8411684
+\end{itemize}
+
+Also, we may get $ \beta^{SGL} $ and the final model.
+\begin{align*}
+\ln\frac{p}{1-p}&=(-2.192) + (0.067)*gender2 + ( -0.078)*anti\_ht1\\ &+
+( -0.467)*anti\_chol1 + ( -0.185)*drugs\_others1 + (0.146)*chol \\ &+
+(0.006)*GFR\_EPI + (0.172)*smkyn2 + (0.904)*ang2
+\end{align*}
+
+\begin{remark}
+	We standardize all the predictors when fitting these methods, and the coefficients are un-standardized to the original scale. The purpose of standardization is to create a common scale for features because there is a penalization term. Since we also standardize the dummy variables, it indeed destroy the sparsity, however it is worthwhile.
+\end{remark}
+
+\subsection{Comparison}
+\subsubsection{LASSO Based Models}
+
+To sum up all the statistics in the previous section, we get this table:
+\begin{table}[ht]
+	\centering
+	\begin{tabular}{rrrrrrr}
+		\hline
+		& lambda & num\_non\_zero & CCR\_train & AUC\_train & CCR\_test & AUC\_test \\ 
+		\hline
+		CV\_dev\_L & 0.004 &   63 & 0.968 & 0.937 & 0.960 & 0.846 \\ 
+		CV\_ME\_L & 0.011 &   14 & 0.964 & 0.911 & 0.963 & 0.852 \\ 
+		BIC\_L & 0.010 &   15 & 0.964 & 0.913 & 0.963 & 0.851 \\ 
+		EBIC\_L & 0.016 &   10 & 0.963 & 0.900 & 0.963 & 0.846 \\ 
+		CV\_dev\_GL & 0.006 &   37 & 0.965 & 0.920 & 0.960 & 0.839 \\ 
+		CV\_ME\_GL & 0.008 &   19 & 0.964 & 0.915 & 0.963 & 0.832 \\ 
+		BIC\_GL & 0.009 &   17 & 0.964 & 0.913 & 0.963 & 0.834 \\ 
+		EBIC\_GL & 0.015 &    9 & 0.963 & 0.904 & 0.963 & 0.841 \\ 
+		CV\_dev\_SGL & 0.003 &   74 & 0.967 & 0.940 & 0.960 & 0.840 \\ 
+		CV\_ME\_SGL & 0.006 &   38 & 0.966 & 0.925 & 0.960 & 0.846 \\ 
+		BIC\_SGL & 0.013 &   10 & 0.964 & 0.907 & 0.963 & 0.840 \\ 
+		EBIC\_SGL & 0.015 &    9 & 0.963 & 0.904 & 0.963 & 0.841 \\ 
+		\hline
+	\end{tabular}
+\end{table}
+
+Also, we plot figures of four evaluation values.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/ccr_train}
+	\caption{CCR value of training dataset of 12 models.}
+\end{figure}
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/hum_train}
+	\caption{AUC value of training dataset of 12 models.}
+\end{figure}
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/ccr_test}
+	\caption{CCR value of test dataset of 12 models.}
+\end{figure}
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{pics/hum_test}
+	\caption{AUC value of test dataset of 12 models.}
+\end{figure}
+
+Several observations can be made from this table. First, CV choose the most predictors and EBIC choose the least, just the same as we discussed. Second, the smallest number of non zero is 9 including the interception. Third, we focus on the HUM (AUC) value on the test data. The smallest value is 0.832 containing 19 non-zero variables, and the largest value is 0.852 containing 14 variables. The EBIC criterion is of top favourite since it both achieve small number of variable and median AUC value.
+
+Next, we evaluate paired models. SGL with EBIC and GL with EBIC achieve the same predictors selected. Thus, we only consider SGL with EBIC as our benchmark model. After thoroughly going through all these 12 models, we find that all the other 11 models select these 9 predictors of the benchmark model. Hence, it is a nest model comparison problem, which means that we could use NRI as the index. We compare all the other 11 models with the default one and calculate the improvement.
+\begin{table}[ht]
+	\centering
+	\begin{tabular}{rrr}
+		\hline
+		& NRI & Standard Error  \\ 
+		\hline
+		CV\_dev\_L & 0.11 &   0.06  \\ 
+		CV\_ME\_L & 0.03 &   0.01  \\ 
+		BIC\_L & 0.04 &   0.02 \\ 
+		EBIC\_L & -0.01 &   0.00  \\ 
+		CV\_dev\_GL & 0.07 &   0.03  \\ 
+		CV\_ME\_GL & 0.05 &   0.03  \\ 
+		BIC\_GL & 0.05 &   0.03   \\ 
+		EBIC\_GL & 0.00 &    0.00  \\ 
+		CV\_dev\_SGL & 0.12 &   0.06 \\ 
+		CV\_ME\_SGL & 0.09 &   0.03 \\ 
+		BIC\_SGL & 0.02 &   0.01  \\ 
+		EBIC\_SGL & 0.00 &   0.00 \\ 
+		\hline
+	\end{tabular}
+\end{table}
+
+The table shows some statistics. The first column is the NRI improvement of the selected model versus SGL with EBIC, and the second column is the bootstrap standard error of NRI.
+We can find that the top NRI improvement is the largest model containing more than 30 predictors, however this model has big standard error. Since the difference of NRI is quite small, we may assert that SGL with EBIC is the best with 9 predictors and 0.841 AUC value.
+
+\subsubsection{Other Models}
+As a comprehensive comparison, we give other available models.
+
+\paragraph{Logistic Model}First, we do not penalize at all and fit a binary logistic model in the same training dataset. The CCR value on the test dataset is 0.927 and the AUC value on the test dataset is 0.728, which is much worse. It implies that feature selection is helpful.
+
+\paragraph{Multiple Layer Perceptron}Second, we implement the simplest deep learning approach: Multiple Layer Perceptron (MLP). Actually MLP is the deep version of logistic regression. If there is no hidden layer, MLP degrades to ordinary logistic model. We construct two hidden layers, first contains 500 neurons and second 100 neurons. Both of them are activated by Relu function. Also, we make some tricks: a dropout layer is built between these two hidden layers, and we use SGD (stochastic gradient decent) with momentum 0.9 to update weights. We use 40 batch size, 0.0004 learning rate and 60 iterations. The graph is shown below.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.17\textwidth]{pics/graph}
+	\caption{The graph of MLP structure.\label{graph}}
+\end{figure}
+The AUC value on the test dataset is 0.86 which is the top of all the models. I have to admit that I am just a beginner of deep learning and thus I am not sure whether this result could be refined (which I believe is of high probability). Hence, it is no doubt that deep learning method can obtain state of art goodness of fit, especially when numbers of samples and predictors exceed to infinity. However, it is quite hard for us to interpret the model and give clinic instructions.
+
+\subsubsection{Important Predictors}
+We choose SGL with EBIC as the final model. Here, $p$ is the predicted probability that one doesn't get heart attack. Hence, we get the equation:
+\begin{align*}
+\ln\frac{p}{1-p}&=(-1.473) + (0.067)*gender2 + ( -0.078)*anti\_ht1\\ &+
+( -0.467)*anti\_chol1 + ( -0.185)*drugs\_others1 + (0.146)*chol \\ &+
+(0.006)*GFR\_EPI + (0.172)*smkyn2 + (0.904)*ang2
+\end{align*}
+
+\begin{figure}
+	\centering
+	\includegraphics[width=0.8\linewidth]{pics/coef9}
+	\caption{Coef path of these nine predictors. Note that we do not penalize the interception.}
+	\label{fig:coef9}
+\end{figure}
+
+
+The coefficient path and meanings of these predictors are stated in the table.
+\begin{table}[ht]
+	\centering
+	\begin{tabular}{rllll}
+		\hline
+		& Variable's code & Meaning & Type & Range \\ 
+		\hline
+		1 & gender2 & gender & binary & 1:female \\ 
+		2 & anti\_ht1 & Anti-hyperstensive drugs & binary & 1:yes \\ 
+		3 & anti\_chol1 & Anti-cholesterol drugs & binary & 1:yes \\ 
+		4 & drugs\_others1 & Drugs - Others & binary & 1:yes \\ 
+		5 & chol & Blood Total Cholesterol 血总胆固醇 & continuous & / \\ 
+		6 & GFR\_EPI & Glomerular Filtration Rate (EPI) 肾小球滤过率 & continuous & / \\ 
+		7 & smkyn2 & Have you ever smoked? & binary & 1:no \\ 
+		8 & ang2 & Angina (self-reported history) 心绞痛 & binary & 1:no \\ 
+		
+		\hline
+	\end{tabular}
+\end{table}
+
+When we standardize these predictors, we can conclude that women who don't intake any drugs, don't suffer from Angina and don't smoke have the least probability to get heart attack.
+\begin{remark}
+	It may seems strange that Blood Total Cholesterol is proportional to p. However, when I look deep into some medical references\cite{olson1997psyllium}, there are two types of cholesterol: LDL (bad) and HDL (good). It is believed that high levels of HDL type of cholesterol removes excess plaque from your arteries, slows its buildup and helps to protect against a heart attack.
+\end{remark}
+
+Although no eye data are chosen in this smallest model, when we investigate all the 12 models, several of them are quite important. Here, we regard a variable to be important if in more than 6 out of 12 model, its coefficient is non zero.
+\begin{table}[ht]
+	\centering
+	\begin{tabular}{rlllll}
+		\hline
+		& Variable's code & Meaning & Type & Range & Number of models selected\\ 
+		\hline
+		1 & bvalogr\_USA2 & Best-corrected visual acuity (BCVA)& three category & 1:virtually impaired &6\\ 
+		2 & R\_retino\_cat2 & Retinopathy category (Right) 右眼视网膜病 & six category & 1:mild&6 \\ 
+		3 & anisometropia1 & Anisometropia indicator 屈光参差 & binary & 1:yes &6\\ 
+		4 & CSME\_any1 & Clinically Significant Macular Edema (CSME) 黄斑水肿 & binary & 1:yes&6 \\ 
+		5 & srepcylr & Cylinder (Right) 柱镜,散光 & continuous & / &7\\ 
+		\hline
+	\end{tabular}
+\end{table}
+\section{Further Discussion}
+\bibliography{ref}
+\end{document}
