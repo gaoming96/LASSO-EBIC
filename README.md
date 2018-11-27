@@ -2,6 +2,7 @@
 LASSO with EBIC to achieve enhanced variable selection in Multi-logistics model.
 
 Here, we extend LASSO into Group LASSO and Sparse Group LASSO while extend BIC into EBIC simultaneously to achieve fairly sparse model.
+See `Midterm_report2.html` for quick `R::glmnet` and `R::grpreg` realization for all the models.
 
 ## Abstract
 
@@ -18,7 +19,7 @@ After applying all these procedures to the dataset, we assert that SGL with EBIC
 
 ## Stucture of files
 
-### Theoritical concepts
+### Theoretical concepts
 
 * `defense_first` (the first defense PPT) contains LASSO group and EBIC group. Specificly, we show the algorithms (Coordinate Descent for LASSO with Linear 
 and Block Coordinate Gradient Descent for SGL with Logistic) and the formulas (Cross Validation and EBIC).
@@ -32,8 +33,8 @@ with the help of Stein's Lemma and give a credible degree of freedom of Group LA
 
 * `defense_second` (the second defense PPT) contains numerical results of all the above algorithms (eg: how EBIC selects the best hyperparameter in LASSO model).
 
-* `Midterm_report2` is a great and detailed Rmd interactive file to achieve all the LASSO group and EBIC (use `glmnet` and `grpreg`).
+* `Midterm_report2` is a great and detailed Rmd interactive file to achieve all the LASSO group and EBIC (using `glmnet` and `grpreg`).
 
-* `rchart_get_html` and outputs `CCR_test` (output result for model comparison) gives great interactive plot using `rchart`.
+* `rchart_get_html` and outputs `CCR_test` (output results for model comparison) give great interactive plots using `rchart`.
 
 * `dissertation_final` (final paper) contains all.
