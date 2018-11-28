@@ -20,7 +20,7 @@ Next, we tune the hyperparameter in these penalized models. Some well-known tuni
 Finally, we try to measure goodness of fit of the models with some indexes: Correct Classification Rate (CCR), Area Under receiver operating characteristic Curve (AUC) and Polytomous Discrimination Index (PDI).
 After applying all these procedures to the dataset, we assert that SGL with EBIC parameter tuning gives the best model containing only 8 predictors.
 
-## Stucture of files
+## Structure of files
 
 ### Theoretical concepts
 
