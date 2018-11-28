@@ -5,7 +5,7 @@ Here, we extend LASSO into Group LASSO and Sparse Group LASSO while extend BIC i
 
 This is my undergraduate dissertaiton for Mathematics and Applied Mathematics (**Zhiyuan Honors Program**) in Shanghai Jiao Tong University (SJTU). My supervisor: Professor Shan Luo[http://math.sjtu.edu.cn/faculty/show.php?id=136] and oversea co-supervisor: Professor Jialiang Li[https://www.duke-nus.edu.sg/content/li-jia-liang].
 
-See `Midterm_report2.html` for quick `R::glmnet` and `R::grpreg` realization for all the models.
+See `Midterm_report2.html` for a quick `R::glmnet` and `R::grpreg` realization for all the models.
 
 ## Abstract
 
